@@ -1,5 +1,6 @@
 var express = require('express');
 var bodyParser = require('body-parser');
+var expressValidator = require('express-validator');
 
 var app = express();
 //app.get('/', function(req, res) { 
@@ -7,6 +8,8 @@ var app = express();
 	//});// 
 
 app.use(bodyParser.json({ type: 'application/json' }));
+app.use(expressValidator());
+
 var postgres = require('./lib/postgres');
 
 
@@ -32,7 +35,7 @@ function lookupPhoto(req, res, next) {
     req.photo = results.rows[0];
     next();
   });
-}
+};
 
 
 
@@ -58,7 +61,25 @@ function lookupPhoto(req, res, next) {
 
 var photoRouter = express.Router();
 photoRouter.get('/', function(req, res) { });
-photoRouter.post('/', function(req, res) { 
+
+function validatePhoto(req, res, next) {
+  req.checkBody('description', 'Invalid description').notEmpty();
+  req.checkBody('album_id', 'Invalid album_id').isNumeric();
+  var errors = req.validationErrors();
+  if (errors) {
+    var response = { errors: [] };
+    errors.forEach(function(err) {
+      response.errors.push(err.msg);
+    });
+    res.statusCode = 400;
+    return res.json(response);
+  }
+  return next();
+ }
+
+
+photoRouter.post('/', validatePhoto, function(req, res){ 
+
 //photoRouter.get(‘/:id’, lookupPhoto, function(req, res) { });//
 var sql = 'INSERT INTO photo (description, filepath, album_id) VALUES ($1,$2,$3) RETURNING id';
   // Retrieve the data to insert from the POST body
@@ -75,7 +96,15 @@ var sql = 'INSERT INTO photo (description, filepath, album_id) VALUES ($1,$2,$3)
       return res.json({
         errors: ['Failed to create photo']
       });
-    }
+  }
+ 
+
+
+
+
+
+
+
     var newPhotoId = result.rows[0].id;
     var sql = 'SELECT * FROM photo WHERE id = $1';
     postgres.client.query(sql, [ newPhotoId ], function(err, result) {
@@ -91,8 +120,8 @@ var sql = 'INSERT INTO photo (description, filepath, album_id) VALUES ($1,$2,$3)
       res.statusCode = 201;
       // The result of CREATE should be the same as GET
       res.json(result.rows[0]);
-  });
-});
+  		});
+	});
 });
 
 
